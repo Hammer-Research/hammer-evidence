@@ -107,20 +107,29 @@ def run_experiment(output, *, inputs, code_files, config, splits, compute, depen
 def verify_run(folder):
     """Check a completed local receipt. Hashes are integrity checks, not signatures."""
     folder = Path(folder).resolve()
-    receipt = json.loads((folder/'receipt.json').read_text())
+    receipt = json.loads(_contained_file(folder, 'receipt.json').read_text())
     if receipt.get('schema') != 'hammer-run-receipt-v1' or receipt.get('status') != 'completed':
         raise ValueError('Completed run receipt required')
-    raw = (folder/'manifest.json').read_bytes()
+    raw = _contained_file(folder, 'manifest.json').read_bytes()
     if digest(raw) != receipt['manifest_sha256']:
         raise ValueError('Manifest checksum mismatch')
     manifest = json.loads(raw)
     if manifest.get('schema') != 'hammer-run-manifest-v1' or not manifest.get('files'):
         raise ValueError('Invalid run manifest')
     for name, checksum in manifest['files'].items():
-        path = (folder/name).resolve()
-        if folder not in path.parents or file_digest(path) != checksum:
+        path = _contained_file(folder, name)
+        if file_digest(path) != checksum:
             raise ValueError('Run file checksum or path mismatch')
-    if file_digest(folder/'result.json') != receipt['result_sha256']:
+    if file_digest(_contained_file(folder, 'result.json')) != receipt['result_sha256']:
         raise ValueError('Result checksum mismatch')
     return {'status': 'checksums_verified', 'files': len(manifest['files']) + 1,
             'independence_certified': False, 'clinical_validity': 'not_established'}
+
+
+def _contained_file(folder, name):
+    if not isinstance(name, str) or Path(name).is_absolute() or '..' in Path(name).parts:
+        raise ValueError('Run files must remain within the run directory')
+    path = (folder/name).resolve()
+    if folder not in path.parents or not path.is_file():
+        raise ValueError('Run file missing or outside the run directory')
+    return path

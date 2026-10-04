@@ -66,8 +66,35 @@ hammer-evidence reviews review-input.json
 hammer-evidence verify-run new-run
 ```
 
-Input JSON keys match the Python function arguments. Reports print to stdout; malformed inputs exit nonzero. A valid report containing issues still exits zero—automation must inspect `status` and `findings`, not just the exit code. Contracts carry versioned schema strings. Version 0.1 is an initial API; preserve dependency versions in reproducible runs.
+Input JSON keys match the Python function arguments. Reports print to stdout; malformed inputs exit nonzero. A valid report containing issues still exits zero—automation must inspect `status` and `findings`, not just the exit code. Contracts carry versioned schema strings. Version 0.2 is an initial API; preserve dependency versions in reproducible runs.
 
 ## Help improve this
 
 Try [the pilot](PILOT.md), then open an issue with a small synthetic reproduction. The most useful feedback is a real workflow these functions cannot express, a missed conflict, or a confusing report. See [CONTRIBUTING.md](CONTRIBUTING.md). MIT applies to this package; no third-party data or model weights are included.
+
+## Record adjudication
+
+`adjudicate_reviews(source, reviews, decision)` verifies a third reviewer's explicit
+resolution against the exact source and original review records. The original
+reviews are never overwritten. The decision must contain:
+
+- `adjudicator`: a name distinct from both original reviewer names.
+- `reviewed_at`: a timezone-aware ISO timestamp.
+- `source_sha256`: the source text hash.
+- `reviews_sha256`: `digest(encode(reviews))`, using `hammer_evidence.common`.
+- `decisions`: all four field names, each with `status` (`resolved` or `unresolved`),
+  `span` (source span or null), and a nonempty `reason`.
+
+An unresolved field must have null span and makes the overall `reference_fields`
+output null. A resolved null means the adjudicator explicitly decided no evidence
+was present. This distinction prevents unresolved work from becoming a negative
+reference label. A completed record still does not prove human identity, reviewer
+independence or scientific accuracy. Automatic promotion remains disabled.
+
+The CLI equivalent is `hammer-evidence adjudicate decision-input.json`; input keys
+are `source`, `reviews` and `decision`. See `examples/adjudication.py` for a synthetic
+worked example. Preserve original review JSON alongside the resulting record.
+
+Run verification rejects file paths and symlinks that resolve outside the run
+folder, including the receipt, manifest and result. It is still not a security
+sandbox: do not execute untrusted callbacks.
